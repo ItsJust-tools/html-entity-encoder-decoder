@@ -1,7 +1,7 @@
 import type { Tool, DeserializeResult } from '@itsjust/core';
 import toolConfig from './tool.config';
-import type { ToolState, ConversionMode } from './types';
-import yaml from 'js-yaml';
+import type { ToolState } from './types';
+import { encodeEntities, decodeEntities, DEFAULT_ENCODE_OPTIONS } from './entities';
 
 function isToolState(value: unknown): value is ToolState {
   if (typeof value !== 'object' || value === null) return false;
@@ -9,30 +9,50 @@ function isToolState(value: unknown): value is ToolState {
   return (
     typeof v.input === 'string' &&
     typeof v.output === 'string' &&
-    (v.mode === 'yaml-to-json' || v.mode === 'json-to-yaml')
+    (v.mode === 'encode' || v.mode === 'decode')
   );
 }
 
-export const yamlToJsonTool: Tool<ToolState> = {
+export const entityTool: Tool<ToolState> = {
   id: toolConfig.id,
   name: toolConfig.name,
   version: toolConfig.version,
   config: toolConfig,
   initialState: {
-    input: 'name: John Doe\nage: 30\nskills:\n  - JavaScript\n  - TypeScript\nactive: true',
+    input: 'Tom & Jerry "live" at <3 café',
     output: '',
-    mode: 'yaml-to-json',
-    indent: 2,
-    error: null,
+    mode: 'encode',
+    encodeQuotes: true,
+    encodeNonAscii: false,
+    encodeReserved: true,
+    preferNumeric: false,
+    entityCount: 0,
+    escapedChars: {},
+    issues: [],
     autoConvert: true,
   },
   serialize: (state) => JSON.stringify(state),
   deserialize: (data): DeserializeResult<ToolState> => {
     try {
       if (isToolState(data)) {
-        return { success: true, data: data };
+        // Fill in options that may be missing from older serialized versions
+        const data_ = data as ToolState;
+        return {
+          success: true,
+          data: {
+            ...data_,
+            encodeQuotes: data_.encodeQuotes ?? DEFAULT_ENCODE_OPTIONS.encodeQuotes,
+            encodeNonAscii: data_.encodeNonAscii ?? DEFAULT_ENCODE_OPTIONS.encodeNonAscii,
+            encodeReserved: data_.encodeReserved ?? DEFAULT_ENCODE_OPTIONS.encodeReserved,
+            preferNumeric: data_.preferNumeric ?? DEFAULT_ENCODE_OPTIONS.preferNumeric,
+            entityCount: typeof data_.entityCount === 'number' ? data_.entityCount : 0,
+            escapedChars: data_.escapedChars ?? {},
+            issues: Array.isArray(data_.issues) ? data_.issues : [],
+            autoConvert: data_.autoConvert ?? true,
+          },
+        };
       }
-      return { success: false, error: 'Invalid data format: expected valid converter state' };
+      return { success: false, error: 'Invalid data format: expected valid entity tool state' };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Deserialization error';
       return { success: false, error: `Failed to deserialize state: ${message}` };
@@ -46,42 +66,69 @@ export const yamlToJsonTool: Tool<ToolState> = {
   ],
 };
 
-/** Convert YAML↔JSON based on state.mode. Not part of the Tool contract. */
+/** Run encode or decode on state.input depending on state.mode. Not part of the Tool contract. */
 export function convert(state: ToolState): ToolState {
-    if (!state.input.trim()) {
-      return { ...state, output: '', error: null };
-    }
+  if (!state.input) {
+    return {
+      ...state,
+      output: '',
+      entityCount: 0,
+      escapedChars: {},
+      issues: [],
+    };
+  }
 
-    try {
-      if (state.mode === 'yaml-to-json') {
-        const parsed = yaml.load(state.input);
-        const output = JSON.stringify(parsed, null, state.indent);
-        return { ...state, output, error: null };
-      } else {
-        const parsed = JSON.parse(state.input);
-        const output = yaml.dump(parsed, { indent: state.indent });
-        return { ...state, output, error: null };
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Conversion error';
-      return { ...state, output: '', error: message };
+  try {
+    if (state.mode === 'encode') {
+      const { text, stats } = encodeEntities(state.input, {
+        encodeQuotes: state.encodeQuotes,
+        encodeNonAscii: state.encodeNonAscii,
+        encodeReserved: state.encodeReserved,
+        preferNumeric: state.preferNumeric,
+      });
+      return {
+        ...state,
+        output: text,
+        entityCount: stats.entityCount,
+        escapedChars: stats.escapedChars,
+        issues: [],
+      };
     }
+    const decoded = decodeEntities(state.input);
+    return {
+      ...state,
+      output: decoded.text,
+      entityCount: decoded.resolvedCount,
+      escapedChars: {},
+      issues: decoded.issues,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Conversion error';
+    return {
+      ...state,
+      output: '',
+      entityCount: 0,
+      escapedChars: {},
+      issues: [],
+      error: message,
+    } as ToolState;
+  }
 }
 
 // Back-compat alias for existing tests using the class-based name.
-export class YamlToJsonToolDefinition {
-  initialState: ToolState = yamlToJsonTool.initialState;
+export class EntityToolDefinition {
+  initialState: ToolState = entityTool.initialState;
 
   serialize(state: ToolState): string {
-    return yamlToJsonTool.serialize(state);
+    return entityTool.serialize(state);
   }
 
   deserialize(serialized: string): DeserializeResult<ToolState> {
     try {
       const parsed: unknown = JSON.parse(serialized);
-      return yamlToJsonTool.deserialize(parsed);
+      return entityTool.deserialize(parsed);
     } catch {
-      return { success: false, error: 'Invalid data format: expected valid converter state' };
+      return { success: false, error: 'Invalid data format: expected valid entity tool state' };
     }
   }
 

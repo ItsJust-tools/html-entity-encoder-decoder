@@ -1,4 +1,3 @@
-import type { ToolState } from './types';
 import type { ToolConfig, ToolExporterDefinition } from '@itsjust/core';
 import toolConfig from './tool.config';
 

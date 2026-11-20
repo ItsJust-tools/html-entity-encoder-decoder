@@ -38,7 +38,19 @@ vi.mock('@itsjust/core', () => ({
   ),
   useTool: () => ({
     state: {
-      data: { text: 'Hello' },
+      data: {
+        input: 'Hello &amp; world',
+        output: 'Hello & world',
+        mode: 'encode',
+        encodeQuotes: true,
+        encodeNonAscii: false,
+        encodeReserved: true,
+        preferNumeric: false,
+        entityCount: 0,
+        escapedChars: {},
+        issues: [],
+        autoConvert: true,
+      },
       setData: mockSetData,
       isDirty: false,
       lastSaved: 'just now',
@@ -64,6 +76,42 @@ vi.mock('@/tool', () => ({
   ToolCanvas: ({ text }: { text: string }) => <div>canvas:{text}</div>,
   ToolToolbar: () => <div>toolbar</div>,
   ToolSidebar: ({ text }: { text: string }) => <div>sidebar:{text}</div>,
+  entityTool: {
+    id: 'simple-notepad',
+    name: 'Notepad',
+    version: '1.0.0',
+    initialState: {
+      input: '',
+      output: '',
+      mode: 'encode',
+      encodeQuotes: true,
+      encodeNonAscii: false,
+      encodeReserved: true,
+      preferNumeric: false,
+      entityCount: 0,
+      escapedChars: {},
+      issues: [],
+      autoConvert: true,
+    },
+    serialize: (s: unknown) => JSON.stringify(s),
+    deserialize: () => ({
+      success: true as const,
+      data: {
+        input: 'From Shared Url',
+        output: '',
+        mode: 'encode' as const,
+        encodeQuotes: true,
+        encodeNonAscii: false,
+        encodeReserved: true,
+        preferNumeric: false,
+        entityCount: 0,
+        escapedChars: {},
+        issues: [],
+        autoConvert: true,
+      },
+    }),
+  },
+  convert: (s: unknown) => s,
 }));
 
 vi.mock('@/tool/notepad-state', () => ({
@@ -96,7 +144,7 @@ describe('app client and help page', () => {
   it('handles share flow in tool client', async () => {
     render(<ToolClient />);
 
-    expect(screen.getByText('toolbar')).toBeInTheDocument();
+    expect(screen.getByText('Encode')).toBeInTheDocument();
     fireEvent.click(screen.getByText('trigger-share'));
 
     expect(mockToast).toHaveBeenCalled();
