@@ -16,6 +16,13 @@ export const toolConfig = {
     statusBar: true,
     darkMode: true,
   },
+  theme: {
+    accent: '#10b981',
+    accentHover: '#059669',
+    accentSubtle: 'rgba(16, 185, 129, 0.08)',
+    brand: 'HTML Entity Encoder/Decoder',
+    icon: '\u{1F522}',
+  },
 } as unknown as ToolConfig;
 
 export default toolConfig;

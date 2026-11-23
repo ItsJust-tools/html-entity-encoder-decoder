@@ -105,7 +105,8 @@ describe('app and seo', () => {
       success: true,
       data: { content: 'x', title: 'My Note' },
     });
-    const exporters = (notepadTool as { exporters?: Array<{ loader: ExporterLoader }> }).exporters ?? [];
+    const exporters =
+      (notepadTool as { exporters?: Array<{ loader: ExporterLoader }> }).exporters ?? [];
     expect(exporters).toHaveLength(4);
     const first = exporters[0];
     expect(first).toBeDefined();
